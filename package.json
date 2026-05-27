@@ -1,0 +1,17 @@
+{
+  "name": "ava-style-site-v1",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --webpack --hostname 127.0.0.1 --port 3042",
+    "build": "next build",
+    "start": "next start --hostname 127.0.0.1 --port 3042",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "next": "16.2.4",
+    "react": "19.1.0",
+    "react-dom": "19.1.0"
+  },
+  "devDependencies": {}
+}
