@@ -382,3 +382,157 @@ h2 {
     min-height: 27rem;
   }
 }
+
+.adminPage {
+  min-height: 100svh;
+  display: grid;
+  place-items: center;
+  padding: clamp(1.2rem, 4vw, 4rem);
+  background:
+    linear-gradient(180deg, rgba(255, 250, 242, 0.95), rgba(239, 228, 212, 0.92)),
+    var(--ivory);
+}
+
+.adminShell {
+  width: min(100%, 960px);
+}
+
+.adminShell.compact {
+  width: min(100%, 560px);
+}
+
+.adminHeader {
+  margin-bottom: clamp(1.4rem, 4vw, 2.4rem);
+}
+
+.adminHeader h1 {
+  margin: 0;
+  color: var(--espresso);
+  font-size: clamp(4rem, 14vw, 8rem);
+  text-shadow: none;
+}
+
+.adminPanel {
+  padding: clamp(1rem, 3vw, 1.6rem);
+  border: 1px solid rgba(60, 36, 24, 0.14);
+  background: rgba(255, 250, 242, 0.78);
+  box-shadow: var(--soft-shadow);
+}
+
+.adminPanelHeader {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 1.2rem;
+}
+
+.adminPanel h2 {
+  font-size: clamp(2rem, 5vw, 4rem);
+}
+
+.adminStatus,
+.adminMessage {
+  margin: 0;
+  color: rgba(17, 16, 14, 0.72);
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.adminStatus.success {
+  margin-bottom: 0.45rem;
+  color: #2c6a4b;
+}
+
+.adminMessage {
+  margin-top: 1rem;
+}
+
+.adminMessage.outside {
+  margin-top: 1rem;
+}
+
+.adminLoginForm {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.adminLoginForm label {
+  color: var(--espresso);
+  font-size: 0.82rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.adminLoginForm input {
+  width: 100%;
+  min-height: 3.25rem;
+  padding: 0 1rem;
+  border: 1px solid rgba(60, 36, 24, 0.22);
+  background: var(--warm-white);
+  color: var(--black);
+  font: inherit;
+}
+
+.adminLoginForm button,
+.adminGhostButton {
+  min-height: 3.1rem;
+  padding: 0 1.1rem;
+  border: 1px solid var(--black);
+  background: var(--black);
+  color: var(--warm-white);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 800;
+}
+
+.adminGhostButton {
+  border-color: rgba(60, 36, 24, 0.24);
+  background: transparent;
+  color: var(--espresso);
+}
+
+.adminSectionGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.8rem;
+}
+
+.adminSection {
+  min-height: 8rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 1rem;
+  border: 1px solid rgba(60, 36, 24, 0.14);
+  background: var(--warm-white);
+}
+
+.adminSection span {
+  color: var(--espresso);
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(1.6rem, 4vw, 2.8rem);
+  line-height: 1;
+}
+
+.adminSection small {
+  color: rgba(17, 16, 14, 0.56);
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+@media (max-width: 680px) {
+  .adminPanelHeader {
+    flex-direction: column;
+  }
+
+  .adminGhostButton {
+    width: 100%;
+  }
+
+  .adminSectionGrid {
+    grid-template-columns: 1fr;
+  }
+}
