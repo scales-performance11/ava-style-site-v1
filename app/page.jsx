@@ -105,7 +105,10 @@ export default async function Home() {
       </section>
 
       <section className="closing">
-        <p>Ava&apos;s world is coming.</p>
+        <div className="closingInner">
+          <p>Ava&apos;s world is coming.</p>
+          <a href="/admin">Admin</a>
+        </div>
       </section>
     </main>
   );
