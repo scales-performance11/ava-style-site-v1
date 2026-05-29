@@ -1,3 +1,7 @@
+import { getPublishedLandingPhotos } from "../lib/landingPhotos";
+
+export const dynamic = "force-dynamic";
+
 const visualWorld = [
   "Elevated Casual",
   "Gym Luxury",
@@ -22,14 +26,16 @@ const galleryTiles = [
   },
 ];
 
-export default function Home() {
+export default async function Home() {
+  const landingPhotos = await getPublishedLandingPhotos();
+
   return (
     <main>
       <section className="hero" aria-label="Ava editorial landing page hero">
         <img
           className="heroImage"
-          src="/images/ava-editorial-closeup.jpeg"
-          alt="Ava editorial portrait"
+          src={landingPhotos.portrait.src}
+          alt={landingPhotos.portrait.alt}
         />
         <div className="heroVeil" />
         <div className="chromeLine chromeLineTop" />
@@ -87,7 +93,7 @@ export default function Home() {
         </div>
         <div className="galleryGrid">
           <figure className="featureFrame">
-            <img src="/images/ava-warm-casual.jpeg" alt="Ava casual style reference" />
+            <img src={landingPhotos["main-brand"].src} alt={landingPhotos["main-brand"].alt} />
           </figure>
           {galleryTiles.map((tile) => (
             <article className="galleryPlaceholder" key={tile.title}>

@@ -493,34 +493,87 @@ h2 {
   color: var(--espresso);
 }
 
-.adminSectionGrid {
+.photoSlotGrid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.8rem;
+  gap: 1rem;
 }
 
-.adminSection {
-  min-height: 8rem;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  padding: 1rem;
+.photoSlot {
+  display: grid;
+  grid-template-columns: minmax(10rem, 0.45fr) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: stretch;
+  padding: clamp(0.75rem, 2vw, 1rem);
   border: 1px solid rgba(60, 36, 24, 0.14);
   background: var(--warm-white);
 }
 
-.adminSection span {
+.photoSlotPreview {
+  min-height: 16rem;
+  overflow: hidden;
+  background: rgba(17, 16, 14, 0.08);
+}
+
+.photoSlotPreview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.photoSlotControls {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.85rem;
+}
+
+.photoSlot h3 {
+  margin: 0;
   color: var(--espresso);
   font-family: Georgia, "Times New Roman", serif;
-  font-size: clamp(1.6rem, 4vw, 2.8rem);
+  font-size: clamp(1.55rem, 4vw, 2.6rem);
   line-height: 1;
 }
 
-.adminSection small {
-  color: rgba(17, 16, 14, 0.56);
-  font-size: 0.78rem;
+.photoPicker,
+.photoActions button {
+  min-height: 3rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 1rem;
+  border: 1px solid rgba(60, 36, 24, 0.22);
+  background: rgba(247, 241, 232, 0.72);
+  color: var(--espresso);
+  cursor: pointer;
+  font: inherit;
   font-weight: 800;
-  text-transform: uppercase;
+}
+
+.photoPicker input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0;
+}
+
+.photoActions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.7rem;
+}
+
+.photoActions button:last-child {
+  border-color: var(--black);
+  background: var(--black);
+  color: var(--warm-white);
+}
+
+.photoActions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.46;
 }
 
 @media (max-width: 680px) {
@@ -532,7 +585,12 @@ h2 {
     width: 100%;
   }
 
-  .adminSectionGrid {
+  .photoSlot,
+  .photoActions {
     grid-template-columns: 1fr;
+  }
+
+  .photoSlotPreview {
+    min-height: 18rem;
   }
 }
