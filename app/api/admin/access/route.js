@@ -1,19 +1,16 @@
-const adminEmails = {
-  "michaeldavidscales@gmail.com": true,
-  "avafitlife@gmail.com": false,
-};
+import { isApprovedAvaAdminEmail, normalizeAdminEmail } from "../../../../lib/avaAdminAccess";
 
 export async function POST(request) {
   let email = "";
 
   try {
     const body = await request.json();
-    email = String(body.email || "").trim().toLowerCase();
+    email = normalizeAdminEmail(body.email);
   } catch (_error) {
     email = "";
   }
 
   return Response.json({
-    allowed: adminEmails[email] === true,
+    allowed: isApprovedAvaAdminEmail(email),
   });
 }

@@ -442,6 +442,11 @@ h2 {
   margin-bottom: 1.2rem;
 }
 
+.adminHeaderActions {
+  display: flex;
+  gap: 0.7rem;
+}
+
 .adminPanel h2 {
   font-size: clamp(2rem, 5vw, 4rem);
 }
@@ -493,6 +498,9 @@ h2 {
 .adminLoginForm button,
 .adminGhostButton {
   min-height: 3.1rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   padding: 0 1.1rem;
   border: 1px solid var(--black);
   background: var(--black);
@@ -500,6 +508,7 @@ h2 {
   cursor: pointer;
   font: inherit;
   font-weight: 800;
+  text-decoration: none;
 }
 
 .adminGhostButton {
@@ -593,6 +602,11 @@ h2 {
 
 @media (max-width: 680px) {
   .adminPanelHeader {
+    flex-direction: column;
+  }
+
+  .adminHeaderActions {
+    width: 100%;
     flex-direction: column;
   }
 

@@ -1,10 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import {
-  createAvaSupabaseBrowserClient,
-  isAvaSupabaseConfigured,
-} from "../../lib/supabase/client";
+import { useEffect, useState } from "react";
 import { LANDING_PHOTO_SLOTS } from "../../lib/landingPhotos";
 
 const allowedImageTypes = ["image/jpeg", "image/png", "image/webp"];
@@ -29,37 +25,7 @@ function friendlyAccessMessage() {
   return "This email is not approved for Ava Admin";
 }
 
-function safeFileName(name) {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9.]+/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "")
-    .slice(0, 80);
-}
-
-function getImageDimensions(file) {
-  return new Promise((resolve, reject) => {
-    const image = new Image();
-    const url = URL.createObjectURL(file);
-
-    image.onload = () => {
-      URL.revokeObjectURL(url);
-      resolve({ width: image.naturalWidth, height: image.naturalHeight });
-    };
-
-    image.onerror = () => {
-      URL.revokeObjectURL(url);
-      reject(new Error("image-load-failed"));
-    };
-
-    image.src = url;
-  });
-}
-
 export default function AdminClient() {
-  const isConfigured = isAvaSupabaseConfigured();
-  const supabase = useMemo(() => createAvaSupabaseBrowserClient(), []);
   const [email, setEmail] = useState("");
   const [isAllowed, setIsAllowed] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -87,9 +53,7 @@ export default function AdminClient() {
         setIsAllowed(true);
         setEmail(storedEmail);
         setMessage("");
-        if (isConfigured && supabase) {
-          await loadLandingPhotos();
-        }
+        await loadLandingPhotosForCurrentAdmin(storedEmail);
       } else {
         window.localStorage.removeItem("ava-admin-email");
         setIsAllowed(false);
@@ -98,49 +62,12 @@ export default function AdminClient() {
       setIsLoading(false);
     }
 
-    async function loadLandingPhotos() {
-      const { data, error } = await supabase
-        .from("ava_photos")
-        .select(
-          "id, alt_text, storage_bucket, storage_path, sort_order, status, updated_at, published_at",
-        )
-        .eq("placement", "hero")
-        .in(
-          "sort_order",
-          LANDING_PHOTO_SLOTS.map((slot) => slot.sortOrder),
-        )
-        .in("status", ["draft", "published"])
-        .order("updated_at", { ascending: false });
-
-      if (error || !data) {
-        return;
-      }
-
-      setPhotoStates((current) => {
-        const next = { ...current };
-
-        LANDING_PHOTO_SLOTS.forEach((slot) => {
-          const slotPhotos = data.filter((photo) => photo.sort_order === slot.sortOrder);
-          const currentPhoto = slotPhotos.find((photo) => photo.status === "published") || null;
-          const draftPhoto = slotPhotos.find((photo) => photo.status === "draft") || null;
-
-          next[slot.key] = {
-            ...next[slot.key],
-            currentPhoto,
-            draftPhoto,
-          };
-        });
-
-        return next;
-      });
-    }
-
     confirmStoredAccess();
 
     return () => {
       isMounted = false;
     };
-  }, [isConfigured, supabase]);
+  }, []);
 
   async function checkAdminEmail(nextEmail) {
     try {
@@ -184,10 +111,7 @@ export default function AdminClient() {
     window.localStorage.setItem("ava-admin-email", cleanEmail);
     setIsAllowed(true);
     setMessage("");
-
-    if (isConfigured && supabase) {
-      await loadLandingPhotosForCurrentAdmin();
-    }
+    await loadLandingPhotosForCurrentAdmin(cleanEmail);
   }
 
   async function handleSignOut() {
@@ -196,45 +120,21 @@ export default function AdminClient() {
     setMessage("");
   }
 
-  async function loadLandingPhotosForCurrentAdmin() {
-    if (!supabase) {
-      return;
+  async function loadLandingPhotosForCurrentAdmin(adminEmail = email) {
+    try {
+      const response = await fetch(
+        `/api/admin/photos?email=${encodeURIComponent(adminEmail)}`,
+      );
+
+      if (!response.ok) {
+        return;
+      }
+
+      const result = await response.json();
+      mergePhotoResults(result.photos || {});
+    } catch (_error) {
+      setMessage("Something didn’t save. Please try again.");
     }
-
-    const { data, error } = await supabase
-      .from("ava_photos")
-      .select(
-        "id, alt_text, storage_bucket, storage_path, sort_order, status, updated_at, published_at",
-      )
-      .eq("placement", "hero")
-      .in(
-        "sort_order",
-        LANDING_PHOTO_SLOTS.map((slot) => slot.sortOrder),
-      )
-      .in("status", ["draft", "published"])
-      .order("updated_at", { ascending: false });
-
-    if (error || !data) {
-      return;
-    }
-
-    setPhotoStates((current) => {
-      const next = { ...current };
-
-      LANDING_PHOTO_SLOTS.forEach((slot) => {
-        const slotPhotos = data.filter((photo) => photo.sort_order === slot.sortOrder);
-        const currentPhoto = slotPhotos.find((photo) => photo.status === "published") || null;
-        const draftPhoto = slotPhotos.find((photo) => photo.status === "draft") || null;
-
-        next[slot.key] = {
-          ...next[slot.key],
-          currentPhoto,
-          draftPhoto,
-        };
-      });
-
-      return next;
-    });
   }
 
   function updatePhotoState(slotKey, updates) {
@@ -248,12 +148,23 @@ export default function AdminClient() {
   }
 
   function getPhotoUrl(photo, fallbackSrc) {
-    if (!photo) {
-      return fallbackSrc;
-    }
+    return photo?.imageUrl || fallbackSrc;
+  }
 
-    const { data } = supabase.storage.from(photo.storage_bucket).getPublicUrl(photo.storage_path);
-    return data.publicUrl || fallbackSrc;
+  function mergePhotoResults(photos) {
+    setPhotoStates((current) => {
+      const next = { ...current };
+
+      LANDING_PHOTO_SLOTS.forEach((slot) => {
+        next[slot.key] = {
+          ...next[slot.key],
+          currentPhoto: photos[slot.key]?.currentPhoto || next[slot.key].currentPhoto,
+          draftPhoto: photos[slot.key]?.draftPhoto || next[slot.key].draftPhoto,
+        };
+      });
+
+      return next;
+    });
   }
 
   async function handlePhotoChoice(slot, file) {
@@ -277,7 +188,7 @@ export default function AdminClient() {
     const slotState = photoStates[slot.key];
     const file = slotState.file;
 
-    if (!file || !supabase) {
+    if (!file) {
       updatePhotoState(slot.key, { message: "Something didn’t save. Please try again." });
       return;
     }
@@ -285,47 +196,28 @@ export default function AdminClient() {
     updatePhotoState(slot.key, { isSaving: true, message: "" });
 
     try {
-      const dimensions = await getImageDimensions(file);
-      const fileName = safeFileName(file.name) || "photo";
-      const draftPath = `landing-page/${slot.key}/${Date.now()}-${crypto.randomUUID()}-${fileName}`;
+      const adminEmail = window.localStorage.getItem("ava-admin-email") || email;
+      const formData = new FormData();
+      formData.append("email", adminEmail);
+      formData.append("slotKey", slot.key);
+      formData.append("photo", file);
 
-      const uploaded = await supabase.storage.from("ava-content-drafts").upload(draftPath, file, {
-        contentType: file.type,
-        upsert: false,
+      const response = await fetch("/api/admin/photos", {
+        method: "POST",
+        body: formData,
       });
 
-      if (uploaded.error) {
-        throw uploaded.error;
-      }
+      const result = await response.json();
 
-      const inserted = await supabase
-        .from("ava_photos")
-        .insert({
-          placement: "hero",
-          title: slot.title,
-          alt_text: slot.fallbackAlt,
-          storage_bucket: "ava-content-drafts",
-          storage_path: draftPath,
-          mime_type: file.type,
-          file_size_bytes: file.size,
-          width: dimensions.width,
-          height: dimensions.height,
-          sort_order: slot.sortOrder,
-          status: "draft",
-        })
-        .select(
-          "id, alt_text, storage_bucket, storage_path, sort_order, status, updated_at, published_at",
-        )
-        .single();
-
-      if (inserted.error) {
-        throw inserted.error;
+      if (!response.ok) {
+        throw new Error(result.message || "save-failed");
       }
 
       updatePhotoState(slot.key, {
-        draftPhoto: inserted.data,
+        draftPhoto: result.draftPhoto,
         file: null,
-        message: "Photo saved",
+        previewUrl: "",
+        message: result.message || "Photo saved",
         isSaving: false,
       });
     } catch (_error) {
@@ -340,7 +232,7 @@ export default function AdminClient() {
     const slotState = photoStates[slot.key];
     const draftPhoto = slotState.draftPhoto;
 
-    if (!draftPhoto || !supabase) {
+    if (!draftPhoto) {
       updatePhotoState(slot.key, { message: "Something didn’t save. Please try again." });
       return;
     }
@@ -348,63 +240,29 @@ export default function AdminClient() {
     updatePhotoState(slot.key, { isPublishing: true, message: "" });
 
     try {
-      const downloaded = await supabase.storage
-        .from("ava-content-drafts")
-        .download(draftPhoto.storage_path);
+      const adminEmail = window.localStorage.getItem("ava-admin-email") || email;
+      const response = await fetch("/api/admin/photos/publish", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email: adminEmail,
+          slotKey: slot.key,
+          photoId: draftPhoto.id,
+        }),
+      });
 
-      if (downloaded.error) {
-        throw downloaded.error;
-      }
+      const result = await response.json();
 
-      const fileName = draftPhoto.storage_path.split("/").pop() || `${draftPhoto.id}.jpg`;
-      const publicPath = `landing-page/${slot.key}/${draftPhoto.id}-${fileName}`;
-
-      const uploaded = await supabase.storage
-        .from("ava-content-public")
-        .upload(publicPath, downloaded.data, {
-          contentType: downloaded.data.type || "image/jpeg",
-          upsert: false,
-        });
-
-      if (uploaded.error) {
-        throw uploaded.error;
-      }
-
-      const now = new Date().toISOString();
-
-      const archived = await supabase
-        .from("ava_photos")
-        .update({ status: "archived", archived_at: now })
-        .eq("placement", "hero")
-        .eq("sort_order", slot.sortOrder)
-        .eq("status", "published");
-
-      if (archived.error) {
-        throw archived.error;
-      }
-
-      const published = await supabase
-        .from("ava_photos")
-        .update({
-          storage_bucket: "ava-content-public",
-          storage_path: publicPath,
-          status: "published",
-          published_at: now,
-        })
-        .eq("id", draftPhoto.id)
-        .select(
-          "id, alt_text, storage_bucket, storage_path, sort_order, status, updated_at, published_at",
-        )
-        .single();
-
-      if (published.error) {
-        throw published.error;
+      if (!response.ok) {
+        throw new Error(result.message || "publish-failed");
       }
 
       updatePhotoState(slot.key, {
-        currentPhoto: published.data,
+        currentPhoto: result.currentPhoto,
         draftPhoto: null,
-        message: "Photo published",
+        message: result.message || "Photo published",
         isPublishing: false,
       });
     } catch (_error) {
@@ -434,9 +292,14 @@ export default function AdminClient() {
                 <p className="adminStatus success">Signed in</p>
                 <h2>Ava Control Center</h2>
               </div>
-              <button className="adminGhostButton" type="button" onClick={handleSignOut}>
-                Sign out
-              </button>
+              <div className="adminHeaderActions">
+                <a className="adminGhostButton" href="/">
+                  View site
+                </a>
+                <button className="adminGhostButton" type="button" onClick={handleSignOut}>
+                  Sign out
+                </button>
+              </div>
             </div>
 
             <div className="photoSlotGrid">
