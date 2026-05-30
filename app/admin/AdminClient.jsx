@@ -29,16 +29,6 @@ function friendlyAccessMessage() {
   return "This email is not approved for Ava Admin";
 }
 
-function getAdminCallbackUrl() {
-  const productionOrigin = "https://ava-style-site-v1.vercel.app";
-  const currentOrigin = window.location.origin;
-  const isLocalHost =
-    window.location.hostname === "localhost" ||
-    window.location.hostname === "127.0.0.1";
-
-  return `${isLocalHost ? productionOrigin : currentOrigin}/admin/auth/callback`;
-}
-
 function safeFileName(name) {
   return name
     .toLowerCase()
@@ -71,50 +61,38 @@ export default function AdminClient() {
   const isConfigured = isAvaSupabaseConfigured();
   const supabase = useMemo(() => createAvaSupabaseBrowserClient(), []);
   const [email, setEmail] = useState("");
-  const [session, setSession] = useState(null);
   const [isAllowed, setIsAllowed] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [photoStates, setPhotoStates] = useState(createEmptyPhotoState);
 
   useEffect(() => {
-    if (!isConfigured || !supabase) {
-      setIsLoading(false);
-      return undefined;
-    }
-
     let isMounted = true;
 
-    async function loadSession() {
-      const { data } = await supabase.auth.getSession();
-      if (!isMounted) {
-        return;
-      }
+    async function confirmStoredAccess() {
+      const storedEmail = window.localStorage.getItem("ava-admin-email");
 
-      setSession(data.session);
-
-      if (data.session) {
-        await confirmAdminAccess();
-      } else {
-        setIsAllowed(false);
+      if (!storedEmail) {
         setIsLoading(false);
+        return;
       }
-    }
 
-    async function confirmAdminAccess() {
-      const { data, error } = await supabase.rpc("is_ava_admin");
+      const allowed = await checkAdminEmail(storedEmail);
 
       if (!isMounted) {
         return;
       }
 
-      if (error || data !== true) {
-        setIsAllowed(false);
-        setMessage(friendlyAccessMessage());
-      } else {
+      if (allowed) {
         setIsAllowed(true);
+        setEmail(storedEmail);
         setMessage("");
-        await loadLandingPhotos();
+        if (isConfigured && supabase) {
+          await loadLandingPhotos();
+        }
+      } else {
+        window.localStorage.removeItem("ava-admin-email");
+        setIsAllowed(false);
       }
 
       setIsLoading(false);
@@ -157,36 +135,37 @@ export default function AdminClient() {
       });
     }
 
-    loadSession();
-
-    const { data: listener } = supabase.auth.onAuthStateChange(
-      async (_event, nextSession) => {
-        setSession(nextSession);
-
-        if (nextSession) {
-          setIsLoading(true);
-          await confirmAdminAccess();
-        } else {
-          setIsAllowed(false);
-          setIsLoading(false);
-        }
-      },
-    );
+    confirmStoredAccess();
 
     return () => {
       isMounted = false;
-      listener.subscription.unsubscribe();
     };
   }, [isConfigured, supabase]);
+
+  async function checkAdminEmail(nextEmail) {
+    try {
+      const response = await fetch("/api/admin/access", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email: nextEmail }),
+      });
+
+      if (!response.ok) {
+        return false;
+      }
+
+      const result = await response.json();
+      return result.allowed === true;
+    } catch (_error) {
+      return false;
+    }
+  }
 
   async function handleLogin(event) {
     event.preventDefault();
     setMessage("");
-
-    if (!isConfigured || !supabase) {
-      setMessage("Ava Admin is not connected yet. Please ask for setup help.");
-      return;
-    }
 
     const cleanEmail = email.trim().toLowerCase();
 
@@ -195,32 +174,67 @@ export default function AdminClient() {
       return;
     }
 
-    const { error } = await supabase.auth.signInWithOtp({
-      email: cleanEmail,
-      options: {
-        emailRedirectTo: getAdminCallbackUrl(),
-        shouldCreateUser: false,
-      },
-    });
+    const allowed = await checkAdminEmail(cleanEmail);
 
-    if (error) {
+    if (!allowed) {
       setMessage("This email is not approved for Ava Admin");
       return;
     }
 
-    setMessage("Check your email to continue");
-    setEmail("");
+    window.localStorage.setItem("ava-admin-email", cleanEmail);
+    setIsAllowed(true);
+    setMessage("");
+
+    if (isConfigured && supabase) {
+      await loadLandingPhotosForCurrentAdmin();
+    }
   }
 
   async function handleSignOut() {
+    window.localStorage.removeItem("ava-admin-email");
+    setIsAllowed(false);
+    setMessage("");
+  }
+
+  async function loadLandingPhotosForCurrentAdmin() {
     if (!supabase) {
       return;
     }
 
-    await supabase.auth.signOut();
-    setSession(null);
-    setIsAllowed(false);
-    setMessage("");
+    const { data, error } = await supabase
+      .from("ava_photos")
+      .select(
+        "id, alt_text, storage_bucket, storage_path, sort_order, status, updated_at, published_at",
+      )
+      .eq("placement", "hero")
+      .in(
+        "sort_order",
+        LANDING_PHOTO_SLOTS.map((slot) => slot.sortOrder),
+      )
+      .in("status", ["draft", "published"])
+      .order("updated_at", { ascending: false });
+
+    if (error || !data) {
+      return;
+    }
+
+    setPhotoStates((current) => {
+      const next = { ...current };
+
+      LANDING_PHOTO_SLOTS.forEach((slot) => {
+        const slotPhotos = data.filter((photo) => photo.sort_order === slot.sortOrder);
+        const currentPhoto = slotPhotos.find((photo) => photo.status === "published") || null;
+        const draftPhoto = slotPhotos.find((photo) => photo.status === "draft") || null;
+
+        next[slot.key] = {
+          ...next[slot.key],
+          currentPhoto,
+          draftPhoto,
+        };
+      });
+
+      return next;
+    });
   }
 
   function updatePhotoState(slotKey, updates) {
@@ -409,17 +423,11 @@ export default function AdminClient() {
           <h1>Ava Admin</h1>
         </div>
 
-        {!isConfigured ? (
-          <div className="adminPanel">
-            <p className="adminStatus">
-              Ava Admin is not connected yet. The public site is still safe to view.
-            </p>
-          </div>
-        ) : isLoading ? (
+        {isLoading ? (
           <div className="adminPanel">
             <p className="adminStatus">Opening Ava Admin...</p>
           </div>
-        ) : session && isAllowed ? (
+        ) : isAllowed ? (
           <div className="adminPanel">
             <div className="adminPanelHeader">
               <div>
@@ -495,9 +503,7 @@ export default function AdminClient() {
           </div>
         )}
 
-        {message && session && !isAllowed ? (
-          <p className="adminMessage outside">{message}</p>
-        ) : null}
+        {message && !isAllowed ? <p className="adminMessage outside">{message}</p> : null}
       </section>
     </main>
   );

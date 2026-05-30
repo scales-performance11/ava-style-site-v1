@@ -11,16 +11,12 @@ These files are for the Ava-only Supabase project named `ava-style-site`.
 
 Only the two `NEXT_PUBLIC_` values may be used in browser code.
 
-## Auth setup
+## Admin access setup
 
-- Use Supabase email magic link / OTP auth only.
-- Disable password sign-in and password reset flows.
-- Disable open signups for unknown users.
-- Create Ava's Auth user in the `ava-style-site` project.
-- Add that user to `public.ava_admins` with `is_active = true`.
-- Add the allowed redirect URLs:
-  - `https://ava-style-site-v1.vercel.app/admin/auth/callback`
-  - `http://127.0.0.1:3042/admin/auth/callback`
+- Ava Admin uses a simple approved-email gate.
+- Mike is active for testing.
+- Ava stays inactive until Mike explicitly activates her.
+- Supabase email links, callback URLs, passwords, and password reset flows are not used for Ava Admin.
 
 ## Storage buckets
 
@@ -33,8 +29,7 @@ Both buckets allow only JPEG, PNG, and WebP images up to 10 MB.
 
 ## Guardrails
 
-- Ava can only reach the admin shell after email sign-in and allowlist approval.
+- Ava Admin opens only for active approved emails.
 - Public readers can only read published rows and public storage.
 - Browser users cannot hard delete rows or storage objects.
-- Publishing and upload flows are intentionally not built in this foundation pass.
 - Service role keys must stay server-only and must never be committed.
