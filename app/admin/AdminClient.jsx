@@ -26,7 +26,17 @@ function createEmptyPhotoState() {
 }
 
 function friendlyAccessMessage() {
-  return "This admin space is private. Please use the invited Ava admin email.";
+  return "This email is not approved for Ava Admin";
+}
+
+function getAdminCallbackUrl() {
+  const productionOrigin = "https://ava-style-site-v1.vercel.app";
+  const currentOrigin = window.location.origin;
+  const isLocalHost =
+    window.location.hostname === "localhost" ||
+    window.location.hostname === "127.0.0.1";
+
+  return `${isLocalHost ? productionOrigin : currentOrigin}/admin/auth/callback`;
 }
 
 function safeFileName(name) {
@@ -181,24 +191,24 @@ export default function AdminClient() {
     const cleanEmail = email.trim().toLowerCase();
 
     if (!cleanEmail) {
-      setMessage("Enter the invited Ava admin email to continue.");
+      setMessage("This email is not approved for Ava Admin");
       return;
     }
 
     const { error } = await supabase.auth.signInWithOtp({
       email: cleanEmail,
       options: {
-        emailRedirectTo: `${window.location.origin}/admin/auth/callback`,
+        emailRedirectTo: getAdminCallbackUrl(),
         shouldCreateUser: false,
       },
     });
 
     if (error) {
-      setMessage("We could not send the sign-in link. Please use the invited Ava admin email.");
+      setMessage("This email is not approved for Ava Admin");
       return;
     }
 
-    setMessage("Check your email for the Ava Admin sign-in link.");
+    setMessage("Check your email to continue");
     setEmail("");
   }
 
@@ -414,7 +424,7 @@ export default function AdminClient() {
             <div className="adminPanelHeader">
               <div>
                 <p className="adminStatus success">Signed in</p>
-                <h2>Landing Page Photos</h2>
+                <h2>Ava Control Center</h2>
               </div>
               <button className="adminGhostButton" type="button" onClick={handleSignOut}>
                 Sign out
@@ -467,7 +477,7 @@ export default function AdminClient() {
         ) : (
           <div className="adminPanel">
             <form className="adminLoginForm" onSubmit={handleLogin}>
-              <label htmlFor="admin-email">Email</label>
+              <label htmlFor="admin-email">Admin email</label>
               <input
                 id="admin-email"
                 name="email"
@@ -478,7 +488,7 @@ export default function AdminClient() {
                 required
                 onChange={(event) => setEmail(event.target.value)}
               />
-              <button type="submit">Send sign-in link</button>
+              <button type="submit">Continue</button>
             </form>
 
             {message ? <p className="adminMessage">{message}</p> : null}

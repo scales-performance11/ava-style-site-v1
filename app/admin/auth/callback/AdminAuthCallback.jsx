@@ -30,7 +30,7 @@ export default function AdminAuthCallback() {
         const { error } = await supabase.auth.exchangeCodeForSession(code);
 
         if (error) {
-          setMessage("This sign-in link could not be opened. Please request a new one.");
+          setMessage("This email is not approved for Ava Admin");
           return;
         }
       }
