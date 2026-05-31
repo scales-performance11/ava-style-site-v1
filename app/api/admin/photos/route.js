@@ -21,10 +21,17 @@ function createAdminClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceRoleKey =
     process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.SUPABASE_SERVICE_ROLE ||
+    process.env.SUPABASE_SERVICE_ROLE_SECRET ||
     process.env.SUPABASE_SERVICE_KEY ||
-    process.env.SUPABASE_SECRET_KEY;
+    process.env.SUPABASE_SECRET_KEY ||
+    process.env.NEXT_SUPABASE_SERVICE_ROLE_KEY;
 
   if (!supabaseUrl || !serviceRoleKey) {
+    logPhotoError("photos.config", new Error("missing-supabase-server-config"), {
+      hasSupabaseUrl: Boolean(supabaseUrl),
+      hasServiceRoleKey: Boolean(serviceRoleKey),
+    });
     return null;
   }
 
@@ -220,8 +227,16 @@ function unauthorized() {
   return Response.json({ message: "This email is not approved for Ava Admin" }, { status: 403 });
 }
 
-function saveFailed() {
-  return Response.json({ message: "Something didn’t save. Please try again." }, { status: 400 });
+function saveFailed(layer = "photos.unknown") {
+  return Response.json(
+    { message: "Something didn’t save. Please try again." },
+    {
+      status: 400,
+      headers: {
+        "x-ava-admin-layer": layer,
+      },
+    },
+  );
 }
 
 export async function GET(request) {
@@ -235,14 +250,14 @@ export async function GET(request) {
 
   if (!supabase) {
     logPhotoError("photos.config", new Error("missing-supabase-server-config"));
-    return saveFailed();
+    return saveFailed("photos.config");
   }
 
   try {
     return Response.json({ photos: await loadPhotos(supabase) });
   } catch (error) {
     logPhotoError("photos.load", error);
-    return saveFailed();
+    return saveFailed("photos.load");
   }
 }
 
@@ -271,7 +286,7 @@ export async function POST(request) {
 
   if (!supabase) {
     logPhotoError("photos.config", new Error("missing-supabase-server-config"));
-    return saveFailed();
+    return saveFailed("photos.config");
   }
 
   try {
@@ -324,6 +339,6 @@ export async function POST(request) {
       fileType: file?.type,
       fileSize: file?.size,
     });
-    return saveFailed();
+    return saveFailed("photos.save");
   }
 }

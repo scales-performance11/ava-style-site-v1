@@ -6,10 +6,17 @@ function createAdminClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceRoleKey =
     process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.SUPABASE_SERVICE_ROLE ||
+    process.env.SUPABASE_SERVICE_ROLE_SECRET ||
     process.env.SUPABASE_SERVICE_KEY ||
-    process.env.SUPABASE_SECRET_KEY;
+    process.env.SUPABASE_SECRET_KEY ||
+    process.env.NEXT_SUPABASE_SERVICE_ROLE_KEY;
 
   if (!supabaseUrl || !serviceRoleKey) {
+    logPublishError("publish.config", new Error("missing-supabase-server-config"), {
+      hasSupabaseUrl: Boolean(supabaseUrl),
+      hasServiceRoleKey: Boolean(serviceRoleKey),
+    });
     return null;
   }
 
@@ -25,8 +32,16 @@ function getSlot(slotKey) {
   return LANDING_PHOTO_SLOTS.find((slot) => slot.key === slotKey) || null;
 }
 
-function saveFailed() {
-  return Response.json({ message: "Something didn’t save. Please try again." }, { status: 400 });
+function saveFailed(layer = "publish.unknown") {
+  return Response.json(
+    { message: "Something didn’t save. Please try again." },
+    {
+      status: 400,
+      headers: {
+        "x-ava-admin-layer": layer,
+      },
+    },
+  );
 }
 
 function logPublishError(layer, error, extra = {}) {
@@ -60,14 +75,14 @@ export async function POST(request) {
   }
 
   if (!slot || !photoId) {
-    return saveFailed();
+    return saveFailed("publish.validate");
   }
 
   const supabase = createAdminClient();
 
   if (!supabase) {
     logPublishError("publish.config", new Error("missing-supabase-server-config"));
-    return saveFailed();
+    return saveFailed("publish.config");
   }
 
   try {
@@ -151,6 +166,6 @@ export async function POST(request) {
       slotKey: slot?.key,
       photoId,
     });
-    return saveFailed();
+    return saveFailed("publish.save");
   }
 }
