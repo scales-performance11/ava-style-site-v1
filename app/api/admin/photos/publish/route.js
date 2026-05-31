@@ -29,12 +29,25 @@ function saveFailed() {
   return Response.json({ message: "Something didn’t save. Please try again." }, { status: 400 });
 }
 
+function logPublishError(layer, error, extra = {}) {
+  console.error("[Ava Admin Photo Publish]", {
+    layer,
+    message: error?.message || String(error || "unknown-error"),
+    code: error?.code,
+    statusCode: error?.statusCode,
+    details: error?.details,
+    hint: error?.hint,
+    ...extra,
+  });
+}
+
 export async function POST(request) {
   let body = {};
 
   try {
     body = await request.json();
-  } catch (_error) {
+  } catch (error) {
+    logPublishError("publish.parse", error);
     body = {};
   }
 
@@ -53,6 +66,7 @@ export async function POST(request) {
   const supabase = createAdminClient();
 
   if (!supabase) {
+    logPublishError("publish.config", new Error("missing-supabase-server-config"));
     return saveFailed();
   }
 
@@ -132,7 +146,11 @@ export async function POST(request) {
         imageUrl: publicUrl,
       },
     });
-  } catch (_error) {
+  } catch (error) {
+    logPublishError("publish.save", error, {
+      slotKey: slot?.key,
+      photoId,
+    });
     return saveFailed();
   }
 }

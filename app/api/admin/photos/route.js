@@ -5,6 +5,18 @@ import { LANDING_PHOTO_SLOTS } from "../../../../lib/landingPhotos";
 const allowedImageTypes = ["image/jpeg", "image/png", "image/webp"];
 const maxImageSizeBytes = 10 * 1024 * 1024;
 
+function logPhotoError(layer, error, extra = {}) {
+  console.error("[Ava Admin Photos]", {
+    layer,
+    message: error?.message || String(error || "unknown-error"),
+    code: error?.code,
+    statusCode: error?.statusCode,
+    details: error?.details,
+    hint: error?.hint,
+    ...extra,
+  });
+}
+
 function createAdminClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceRoleKey =
@@ -222,12 +234,14 @@ export async function GET(request) {
   const supabase = createAdminClient();
 
   if (!supabase) {
+    logPhotoError("photos.config", new Error("missing-supabase-server-config"));
     return saveFailed();
   }
 
   try {
     return Response.json({ photos: await loadPhotos(supabase) });
-  } catch (_error) {
+  } catch (error) {
+    logPhotoError("photos.load", error);
     return saveFailed();
   }
 }
@@ -243,12 +257,20 @@ export async function POST(request) {
   }
 
   if (!slot || !file || !allowedImageTypes.includes(file.type) || file.size > maxImageSizeBytes) {
+    logPhotoError("photos.validate", new Error("invalid-photo-upload"), {
+      hasSlot: Boolean(slot),
+      hasFile: Boolean(file),
+      fileType: file?.type,
+      fileSize: file?.size,
+      maxImageSizeBytes,
+    });
     return Response.json({ message: "Try a smaller image" }, { status: 400 });
   }
 
   const supabase = createAdminClient();
 
   if (!supabase) {
+    logPhotoError("photos.config", new Error("missing-supabase-server-config"));
     return saveFailed();
   }
 
@@ -296,7 +318,12 @@ export async function POST(request) {
       message: "Photo saved",
       draftPhoto: await serializePhoto(supabase, inserted.data),
     });
-  } catch (_error) {
+  } catch (error) {
+    logPhotoError("photos.save", error, {
+      slotKey: slot?.key,
+      fileType: file?.type,
+      fileSize: file?.size,
+    });
     return saveFailed();
   }
 }

@@ -3,8 +3,10 @@
 import { useEffect, useState } from "react";
 import { LANDING_PHOTO_SLOTS } from "../../lib/landingPhotos";
 
-const allowedImageTypes = ["image/jpeg", "image/png", "image/webp"];
-const maxImageSizeBytes = 10 * 1024 * 1024;
+const maxOriginalImageSizeBytes = 50 * 1024 * 1024;
+const targetImageSizeBytes = 4 * 1024 * 1024;
+const maxImageDimension = 2400;
+const compressionQualities = [0.84, 0.76, 0.68, 0.6];
 
 function createEmptyPhotoState() {
   return LANDING_PHOTO_SLOTS.reduce((result, slot) => {
@@ -167,21 +169,131 @@ export default function AdminClient() {
     });
   }
 
+  function loadImageFromFile(file) {
+    return new Promise((resolve, reject) => {
+      const imageUrl = URL.createObjectURL(file);
+      const image = new Image();
+
+      image.onload = () => {
+        URL.revokeObjectURL(imageUrl);
+        resolve(image);
+      };
+
+      image.onerror = () => {
+        URL.revokeObjectURL(imageUrl);
+        reject(new Error("image-load-failed"));
+      };
+
+      image.src = imageUrl;
+    });
+  }
+
+  function canvasToBlob(canvas, quality) {
+    return new Promise((resolve, reject) => {
+      canvas.toBlob(
+        (blob) => {
+          if (blob) {
+            resolve(blob);
+            return;
+          }
+
+          reject(new Error("image-compress-failed"));
+        },
+        "image/jpeg",
+        quality,
+      );
+    });
+  }
+
+  function compressedFileName(fileName) {
+    const cleanName = String(fileName || "ava-photo")
+      .replace(/\.[^.]+$/, "")
+      .replace(/[^a-z0-9]+/gi, "-")
+      .replace(/-+/g, "-")
+      .replace(/^-|-$/g, "")
+      .slice(0, 70) || "ava-photo";
+
+    return `${cleanName}.jpg`;
+  }
+
+  function isLikelyImageFile(file) {
+    if (!file) {
+      return false;
+    }
+
+    if (file.type.startsWith("image/")) {
+      return true;
+    }
+
+    return /\.(heic|heif|jpe?g|png|webp)$/i.test(file.name || "");
+  }
+
+  async function preparePhotoForUpload(file) {
+    if (!isLikelyImageFile(file) || file.size > maxOriginalImageSizeBytes) {
+      throw new Error("image-not-ready");
+    }
+
+    const image = await loadImageFromFile(file);
+    const scale = Math.min(1, maxImageDimension / Math.max(image.naturalWidth, image.naturalHeight));
+    const width = Math.max(1, Math.round(image.naturalWidth * scale));
+    const height = Math.max(1, Math.round(image.naturalHeight * scale));
+    const canvas = document.createElement("canvas");
+    const context = canvas.getContext("2d");
+
+    if (!context) {
+      throw new Error("image-compress-failed");
+    }
+
+    canvas.width = width;
+    canvas.height = height;
+    context.drawImage(image, 0, 0, width, height);
+
+    let smallestBlob = null;
+
+    for (const quality of compressionQualities) {
+      const blob = await canvasToBlob(canvas, quality);
+      smallestBlob = blob;
+
+      if (blob.size <= targetImageSizeBytes) {
+        return new File([blob], compressedFileName(file.name), {
+          type: "image/jpeg",
+          lastModified: Date.now(),
+        });
+      }
+    }
+
+    if (smallestBlob && smallestBlob.size <= targetImageSizeBytes * 2) {
+      return new File([smallestBlob], compressedFileName(file.name), {
+        type: "image/jpeg",
+        lastModified: Date.now(),
+      });
+    }
+
+    throw new Error("image-too-large-after-compress");
+  }
+
   async function handlePhotoChoice(slot, file) {
-    if (!file || !allowedImageTypes.includes(file.type) || file.size > maxImageSizeBytes) {
+    updatePhotoState(slot.key, {
+      file: null,
+      previewUrl: "",
+      message: "",
+    });
+
+    try {
+      const preparedFile = await preparePhotoForUpload(file);
+
+      updatePhotoState(slot.key, {
+        file: preparedFile,
+        previewUrl: URL.createObjectURL(preparedFile),
+        message: "",
+      });
+    } catch (_error) {
       updatePhotoState(slot.key, {
         file: null,
         previewUrl: "",
         message: "Try a smaller image",
       });
-      return;
     }
-
-    updatePhotoState(slot.key, {
-      file,
-      previewUrl: URL.createObjectURL(file),
-      message: "",
-    });
   }
 
   async function handleSavePhoto(slot) {
@@ -222,7 +334,7 @@ export default function AdminClient() {
       });
     } catch (_error) {
       updatePhotoState(slot.key, {
-        message: file.size > maxImageSizeBytes ? "Try a smaller image" : "Something didn’t save. Please try again.",
+        message: "Something didn’t save. Please try again.",
         isSaving: false,
       });
     }
@@ -317,7 +429,7 @@ export default function AdminClient() {
                       <span>Choose photo</span>
                       <input
                         type="file"
-                        accept="image/jpeg,image/png,image/webp"
+                        accept="image/*"
                         onChange={(event) => handlePhotoChoice(slot, event.target.files?.[0])}
                       />
                     </label>
